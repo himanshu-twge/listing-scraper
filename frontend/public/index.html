@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Listing Scraper - TWGE Solutions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="/config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <!-- Auth gate (shown only when user is signed-out) -->
+  <div id="auth-gate" class="auth-gate" hidden>
+    <div class="auth-card">
+      <div class="auth-brand">
+        <h1 class="auth-title">Listing Scraper</h1>
+        <p class="auth-sub">TWGE Solutions</p>
+      </div>
+      <div id="signin-host" class="signin-host">
+        <div class="auth-loading">Loading sign-in...</div>
+      </div>
+      <p class="auth-foot">Sign in to access the brand monitor.</p>
+    </div>
+  </div>
+
+  <!-- Main app (shown only when user is signed-in) -->
+  <div id="app-shell" hidden>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <h1 class="brand-title">Listing Scraper</h1>
+          <span class="brand-sub">TWGE Solutions</span>
+        </div>
+        <div class="status">
+          <span class="dot" data-testid="online-dot"></span>
+          <span class="status-text">Online</span>
+          <div id="user-area" class="user-area"></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div id="view-home" class="view">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <h2 class="page-title">Brands</h2>
+            <p class="page-sub">Manage brands, pincodes, and ASINs. Scrape Amazon India product data per pincode.</p>
+          </div>
+          <div class="toolbar-right">
+            <button id="btn-scrape-all" class="btn btn-primary" data-testid="btn-scrape-all">Scrape All Brands</button>
+          </div>
+        </div>
+
+        <div id="brand-grid" class="brand-grid" data-testid="brand-grid"></div>
+
+        <section class="add-brand-card">
+          <h3 class="section-title">Add New Brand</h3>
+          <div class="row">
+            <input id="new-brand-name" type="text" placeholder="e.g. Neuwganic" class="input" data-testid="new-brand-name" />
+            <button id="btn-create-brand" class="btn btn-primary" data-testid="btn-create-brand">Create Brand</button>
+          </div>
+          <p class="hint">A new brand starts with default pincode 400064 Mumbai. Add more pincodes and ASINs after creating.</p>
+        </section>
+      </div>
+
+      <div id="view-brand" class="view" hidden></div>
+    </main>
+
+    <div id="modal-root"></div>
+    <div id="toast-root"></div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

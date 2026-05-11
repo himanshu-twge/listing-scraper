@@ -1,0 +1,74 @@
+{
+  "summary": "Completed comprehensive testing of new Scrape History and Compare Across Dates features for Amazon India Listing Scraper. Backend APIs for runs/history management are fully functional. Frontend UI sections render correctly with proper data-testid attributes. CSV downloads use friendly filenames. Both Deep-Dive and Matrix comparison views work as expected.",
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": [],
+    "minor_issues": [
+      {
+        "test": "Test 13 - POST /api/brands/Chheda/scrape creates scrape_runs record",
+        "issue": "Test assertion checked for 'pincode_codes' field but API correctly returns 'pincodes' (parsed list)",
+        "impact": "Test-only issue, not a backend bug. API behavior is correct.",
+        "fix_priority": "LOW"
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "passed_tests": [
+    "Backend: GET /api/health returns ok",
+    "Backend: GET /api/brands lists all brands with counts",
+    "Backend: POST /api/brands creates new brand with default pincode",
+    "Backend: POST /api/brands/:name/asins adds valid ASIN",
+    "Backend: POST /api/brands/:name/scrape starts job",
+    "Backend: GET /api/brands/:name/runs returns runs array + legacy count (verified: 2 runs found)",
+    "Backend: GET /api/brands/:name/runs/:run_id returns run + results array",
+    "Backend: GET /api/brands/:name/runs/:run_id/csv returns CSV with friendly filename (verified: TestBrand_1778300017_9-May-2026_04-13-37.csv)",
+    "Backend: DELETE /api/brands/:name/runs/:run_id removes run and results",
+    "Backend: GET /api/brands/Chheda/history returns historical results + distinct lists (44 results, 5 pincodes, 4 ASINs)",
+    "Backend: GET /api/brands/Chheda/history?pincode=400064 filters correctly (16 results)",
+    "Backend: GET /api/brands/Chheda/history?pincode=400064&asin=B08WJ12R6N filters correctly (5 results)",
+    "Backend: Stock parser correctly handles 'back in stock' substring (verified 10 results for B08WJ4C33Z)",
+    "Backend: Price parser returns 'Rs. NNN' format ignoring M.R.P/per-unit (verified 12 results)",
+    "Backend: Cleanup - Delete test brand",
+    "Frontend: Homepage loads and shows Chheda brand card",
+    "Frontend: Brand detail page loads with all sections (pincodes, asins, results)",
+    "Frontend: Scrape History section exists with data-testid=section-history",
+    "Frontend: History list shows 2 scrape runs with proper table structure",
+    "Frontend: History table has correct headers (When, ASINs, Pincodes, Results, Status, Action)",
+    "Frontend: Download CSV buttons exist with proper data-testid (btn-download-run-N)",
+    "Frontend: CSV download buttons navigate to correct URL (/api/brands/Chheda/runs/:run_id/csv)",
+    "Frontend: Delete buttons exist for each run",
+    "Frontend: Legacy results note displays correctly (28 legacy results)",
+    "Frontend: Compare Across Dates section exists with data-testid=section-compare",
+    "Frontend: Both tabs exist (Single ASIN Deep-Dive and Multi-ASIN Matrix)",
+    "Frontend: Deep-Dive tab is active by default",
+    "Frontend: Deep-Dive tab has pincode and ASIN dropdowns (data-testid=compare-pincode, compare-asin)",
+    "Frontend: Deep-Dive tab has 8 attribute checkboxes (price, seller, rating, reviews, stock, delivery, title, pincode_verified)",
+    "Frontend: Deep-Dive table renders after selecting pincode + ASIN",
+    "Frontend: Deep-Dive table shows historical data with proper columns",
+    "Frontend: Matrix tab switching works correctly",
+    "Frontend: Matrix tab has pincode and attribute dropdowns (data-testid=matrix-pincode, matrix-attr)",
+    "Frontend: Matrix table renders with ASIN rows and date columns",
+    "Frontend: Matrix table shows 4 ASINs x 11 date columns with price data",
+    "Frontend: Helper text displays correctly ('Showing: Selling Price. Highlighted cells = value changed...')"
+  ],
+  "test_report_links": [
+    "/app/backend/backend_test.py",
+    "/app/.screenshots/brand_detail_with_new_sections.png",
+    "/app/.screenshots/deep_dive_with_data.png",
+    "/app/.screenshots/matrix_view.png"
+  ],
+  "success_percentage": {
+    "backend": "93.8% (15/16 tests passed, 1 test assertion issue)",
+    "frontend": "100% (all UI sections and interactions working correctly)"
+  },
+  "updated_files": [
+    "/app/backend/backend_test.py"
+  ],
+  "action_item_for_main_agent": "",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_test_itself": true
+}
