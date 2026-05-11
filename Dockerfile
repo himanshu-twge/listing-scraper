@@ -1,27 +1,29 @@
-FROM node:20-slim AS frontend-builder
-
-WORKDIR /frontend
-COPY frontend/package.json frontend/yarn.lock ./
-RUN yarn install --frozen-lockfile
-COPY frontend/ ./
-RUN yarn build || true
-RUN ls -la /frontend/
-RUN ls -la /frontend/build/ || echo "NO BUILD FOLDER"
-
 FROM python:3.11-slim
 
 WORKDIR /app
 
+# Install Node.js 20 + Python deps in one image
 RUN apt-get update && apt-get install -y \
     gcc \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt .
-RUN pip install -r requirements.txt
-RUN pip install aiofiles
+# Install frontend dependencies and build
+COPY frontend/package.json frontend/yarn.lock ./frontend/
+RUN cd frontend && npm install -g yarn && yarn install --frozen-lockfile
 
+COPY frontend/ ./frontend/
+RUN cd frontend && yarn build
+
+# Install Python dependencies
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir aiofiles
+
+# Copy backend
 COPY backend/ ./backend/
-COPY --from=frontend-builder /frontend/build/ ./frontend/public/
 
 ENV PYTHONPATH=/app
 
