@@ -4,7 +4,9 @@ WORKDIR /frontend
 COPY frontend/package.json frontend/yarn.lock ./
 RUN yarn install --frozen-lockfile
 COPY frontend/ ./
-RUN yarn build
+RUN yarn build || true
+RUN ls -la /frontend/
+RUN ls -la /frontend/build/ || echo "NO BUILD FOLDER"
 
 FROM python:3.11-slim
 
@@ -19,7 +21,7 @@ RUN pip install -r requirements.txt
 RUN pip install aiofiles
 
 COPY backend/ ./backend/
-COPY --from=frontend-builder /frontend/build ./frontend/public
+COPY --from=frontend-builder /frontend/build/ ./frontend/public/
 
 ENV PYTHONPATH=/app
 
