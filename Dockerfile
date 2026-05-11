@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
 
+RUN pip install aiofiles
+
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 
@@ -18,4 +20,4 @@ WORKDIR /app/backend
 
 EXPOSE 8000
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
