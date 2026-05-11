@@ -1,4 +1,4 @@
-FROM node:18-slim AS frontend-builder
+FROM node:20-slim AS frontend-builder
 
 WORKDIR /frontend
 COPY frontend/package.json frontend/yarn.lock ./
