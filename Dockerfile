@@ -1,3 +1,11 @@
+FROM node:18-slim AS frontend-builder
+
+WORKDIR /frontend
+COPY frontend/package.json frontend/yarn.lock ./
+RUN yarn install --frozen-lockfile
+COPY frontend/ ./
+RUN yarn build
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -8,11 +16,10 @@ RUN apt-get update && apt-get install -y \
 
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
-
 RUN pip install aiofiles
 
 COPY backend/ ./backend/
-COPY frontend/ ./frontend/
+COPY --from=frontend-builder /frontend/build ./frontend/public
 
 ENV PYTHONPATH=/app
 
