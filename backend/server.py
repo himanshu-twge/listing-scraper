@@ -15,7 +15,8 @@ from typing import Any, Dict, List, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, validator
 
 load_dotenv("/app/backend/.env")
@@ -26,10 +27,7 @@ from scraper import scrape_asin_pincode  # noqa: E402
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
 log = logging.getLogger("scraper-app")
 
-# Concurrency for scrape job (configurable via env)
 SCRAPE_CONCURRENCY = int(os.environ.get("SCRAPE_CONCURRENCY", "8"))
-# Per-worker delay between successive requests (ms). 0 = no extra delay
-# (Decodo rate-limits internally based on plan).
 SCRAPE_PER_REQUEST_DELAY_MS = int(os.environ.get("SCRAPE_PER_REQUEST_DELAY_MS", "0"))
 
 app = FastAPI(title="Listing Scraper")
@@ -42,12 +40,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory job registry per brand name
 _jobs_lock = threading.Lock()
 _jobs: Dict[str, Dict[str, Any]] = {}
 
 
-# ========== Pydantic Models ==========
 class BrandIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
 
@@ -84,7 +80,6 @@ class ScrapeIn(BaseModel):
     pincodes: List[PincodeIn]
 
 
-# ========== DB helpers ==========
 def now_iso() -> str:
     return datetime.utcnow().isoformat()
 
@@ -103,7 +98,6 @@ def require_brand(name: str) -> Dict:
     return b
 
 
-# ========== Startup ==========
 @app.on_event("startup")
 def on_startup():
     init_db()
@@ -111,7 +105,6 @@ def on_startup():
     log.info("DB initialized + seeded if needed")
 
 
-# ========== Health ==========
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "listing-scraper", "time": now_iso()}
@@ -122,7 +115,6 @@ def api_health():
     return health()
 
 
-# ========== Brands ==========
 @app.get("/api/brands")
 def list_brands():
     out = []
@@ -163,7 +155,6 @@ def create_brand(body: BrandIn):
             raise HTTPException(400, "Brand already exists")
         cur.execute("INSERT INTO brands(name, created_at) VALUES (?, ?)", (name, now_iso()))
         bid = cur.lastrowid
-        # Add default pincode 400064 Mumbai for new brand
         cur.execute(
             "INSERT INTO pincodes(brand_id, code, city, created_at) VALUES (?, ?, ?, ?)",
             (bid, "400064", "Mumbai", now_iso()),
@@ -189,7 +180,6 @@ def brand_detail(name: str):
         asins = [dict(r) for r in cur.fetchall()]
         cur.execute("SELECT id, code, city, created_at FROM pincodes WHERE brand_id = ? ORDER BY id", (b["id"],))
         pincodes = [dict(r) for r in cur.fetchall()]
-        # Latest result per (asin, pincode)
         cur.execute(
             """
             SELECT sr.* , a.asin AS asin, a.notes AS notes
@@ -212,7 +202,6 @@ def brand_detail(name: str):
     }
 
 
-# ========== Pincodes ==========
 @app.post("/api/brands/{name}/pincodes")
 def add_pincode(name: str, body: PincodeIn):
     b = require_brand(name)
@@ -235,7 +224,6 @@ def delete_pincode(name: str, code: str):
     return {"deleted": True}
 
 
-# ========== ASINs ==========
 @app.post("/api/brands/{name}/asins")
 def add_asin(name: str, body: AsinIn):
     b = require_brand(name)
@@ -264,7 +252,6 @@ def upload_asins(name: str, body: UploadAsinsIn):
     added = 0
     skipped = 0
     with cursor() as cur:
-        # Replace entire list
         cur.execute("DELETE FROM asins WHERE brand_id = ?", (b["id"],))
         seen = set()
         for a in body.asins:
@@ -303,7 +290,6 @@ def download_asins(name: str):
     )
 
 
-# ========== Results CSV Export ==========
 @app.get("/api/brands/{name}/csv")
 def export_results_csv(name: str):
     b = require_brand(name)
@@ -347,7 +333,6 @@ def export_results_csv(name: str):
     )
 
 
-# ========== Scraping Jobs ==========
 def _job_status(brand_name: str) -> Dict:
     with _jobs_lock:
         j = _jobs.get(brand_name)
@@ -387,7 +372,6 @@ def _run_brand_scrape(brand_name: str, pincodes: List[Dict[str, str]]):
             asins = [dict(r) for r in cur.fetchall()]
         total = len(asins) * len(pincodes)
 
-        # Create scrape_runs record
         run_id = None
         if total > 0:
             with cursor() as cur:
@@ -404,7 +388,6 @@ def _run_brand_scrape(brand_name: str, pincodes: List[Dict[str, str]]):
             _set_job(brand_name, isScraping=False, progress={"current": 0, "total": 0, "label": "Done"})
             return
 
-        # Build task list
         tasks = []
         for a in asins:
             for pc in pincodes:
@@ -442,7 +425,6 @@ def _run_brand_scrape(brand_name: str, pincodes: List[Dict[str, str]]):
                     cur_n = completed["n"]
                 _job_log(brand_name, f"OK {a['asin']} @ {code} - price={parsed.get('price','-') or '-'} stock={parsed.get('stock','-')} verified={parsed.get('pincode_verified')}")
                 _set_job(brand_name, progress={"current": cur_n, "total": total, "label": f"{label} ({cur_n} of {total})"})
-                # Per-worker pacing
                 if SCRAPE_PER_REQUEST_DELAY_MS > 0:
                     time.sleep(SCRAPE_PER_REQUEST_DELAY_MS / 1000.0)
                 return True
@@ -469,13 +451,11 @@ def _run_brand_scrape(brand_name: str, pincodes: List[Dict[str, str]]):
         with ThreadPoolExecutor(max_workers=SCRAPE_CONCURRENCY) as ex:
             futures = [ex.submit(worker, t) for t in tasks]
             for f in as_completed(futures):
-                # exceptions are caught inside worker
                 try:
                     f.result()
                 except Exception:
                     pass
 
-        # Finalize run
         if run_id is not None:
             with cursor() as cur:
                 cur.execute(
@@ -532,12 +512,10 @@ def scrape_all():
     return {"started": started, "skipped": skipped}
 
 
-# ========== Scrape History ==========
 _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
 def _friendly_filename(brand_name: str, iso_dt: str) -> str:
-    """Produce filename like 'Chheda_5-May-2026_15-30-12.csv' from ISO datetime."""
     try:
         dt = datetime.fromisoformat(iso_dt.replace("Z", "")) if iso_dt else datetime.utcnow()
     except Exception:
@@ -564,7 +542,6 @@ def list_runs(name: str):
             except Exception:
                 d["pincodes"] = []
             runs.append(d)
-        # Backfill: include legacy results without run_id as a synthetic group per scraped_at minute
         cur.execute(
             "SELECT COUNT(*) AS c FROM scrape_results WHERE brand_id = ? AND run_id IS NULL",
             (b["id"],),
@@ -664,9 +641,6 @@ def history(
     pincode: Optional[str] = Query(None),
     asin: Optional[str] = Query(None),
 ):
-    """Return historical scrape results for the brand, optionally filtered by pincode/asin.
-    Useful for both deep-dive (single ASIN over time) and matrix (multi-ASIN over time) views.
-    """
     b = require_brand(name)
     where = ["sr.brand_id = ?"]
     params: List[Any] = [b["id"]]
@@ -691,7 +665,6 @@ def history(
             tuple(params),
         )
         results = [dict(r) for r in cur.fetchall()]
-        # Distinct lists for UI dropdowns
         cur.execute("SELECT DISTINCT pincode_code, pincode_city FROM scrape_results WHERE brand_id = ? ORDER BY pincode_code", (b["id"],))
         pincodes = [dict(r) for r in cur.fetchall()]
         cur.execute(
@@ -701,3 +674,13 @@ def history(
         )
         asins = [dict(r) for r in cur.fetchall()]
     return {"results": results, "pincodes": pincodes, "asins": asins}
+
+
+# ========== Serve Frontend ==========
+FRONTEND_DIR = "/app/frontend/public"
+
+app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
+
+@app.get("/{full_path:path}")
+def serve_frontend(full_path: str):
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
